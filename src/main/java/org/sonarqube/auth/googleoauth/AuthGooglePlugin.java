@@ -38,21 +38,21 @@ package org.sonarqube.auth.googleoauth;
  * limitations under the License.
  * #L%
  */
+import org.sonar.api.Plugin;
+import java.util.Arrays;
 
-import org.sonar.api.SonarPlugin;
-
-import java.util.ArrayList;
-import java.util.List;
-
-public class AuthGooglePlugin extends SonarPlugin {
+public class AuthGooglePlugin implements Plugin {
   @Override
-  public List getExtensions() {
-    List extensions = new ArrayList();
-    extensions.add(GoogleSettings.class);
-    extensions.add(UserIdentityFactory.class);
-    extensions.add(GoogleIdentityProvider.class);
-    extensions.add(GoogleScribeApi.class);
-    extensions.addAll(GoogleSettings.definitions());
-    return extensions;
+  public void define(Context context) {
+    // Add all extensions at once using Arrays.asList
+    context.addExtensions(Arrays.asList(
+      GoogleSettings.class,
+      UserIdentityFactory.class,
+      GoogleIdentityProvider.class,
+      GoogleScribeApi.class
+    ));
+    
+    // Add settings definitions
+    context.addExtensions(GoogleSettings.definitions());
   }
 }
