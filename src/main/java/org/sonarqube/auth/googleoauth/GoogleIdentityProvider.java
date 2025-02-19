@@ -47,6 +47,7 @@ import org.sonar.api.server.authentication.Display;
 import org.sonar.api.server.authentication.OAuth2IdentityProvider;
 import org.sonar.api.server.authentication.UserIdentity;
 import org.sonar.api.server.http.HttpRequest;
+import org.sonar.api.server.http.HttpResponse;
 import org.sonar.api.utils.MessageException;
 import org.sonar.api.utils.log.Logger;
 import org.sonar.api.utils.log.Loggers;
@@ -102,16 +103,6 @@ public class GoogleIdentityProvider implements OAuth2IdentityProvider {
   }
 
   @Override
-    public HttpRequest getHttpRequest() {
-      return request;
-    }
-
-    @Override
-    public HttpResponse getHttpResponse() {
-      return response;
-    }
-
-  @Override
   public boolean allowsUsersToSignUp() {
     return settings.allowUsersToSignUp();
   }
@@ -127,7 +118,7 @@ public class GoogleIdentityProvider implements OAuth2IdentityProvider {
 
   @Override
   public void callback(CallbackContext context) {
-    HttpServletRequest request = context.HttpRequest();
+    HttpRequest request = context.getHttpRequest();
     OAuthService scribe = newScribeBuilder(context).build();
     String oAuthVerifier = request.getParameter("code");
     Token accessToken = scribe.getAccessToken(EMPTY_TOKEN, new Verifier(oAuthVerifier));
@@ -160,7 +151,7 @@ public class GoogleIdentityProvider implements OAuth2IdentityProvider {
       redirectTo = settings.getSonarBaseURL()+"/sessions/unauthorized#";
     }
     try {
-      context.getResponse().sendRedirect(redirectTo);
+      context.getHttpResponse().sendRedirect(redirectTo);
     } catch (IOException ioe) {
       throw MessageException.of("Unable to redirect after OAuth login", ioe);
     }

@@ -50,11 +50,9 @@ import org.sonar.api.config.PropertyDefinitions;
 import org.sonar.api.config.Settings;
 import org.sonar.api.server.authentication.OAuth2IdentityProvider;
 import org.sonar.api.server.authentication.UserIdentity;
+import org.sonar.api.server.http.HttpRequest;
+import org.sonar.api.server.http.HttpResponse;
 
-import javax.servlet.ServletOutputStream;
-import javax.servlet.http.Cookie;
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.util.Collection;
@@ -129,7 +127,7 @@ public class IntegrationTest {
             "    \"locale\": \"en-US\"\n" +
             "}"));
 
-    HttpServletRequest request = newRequest("the-verifier-code");
+    HttpRequest request = newRequest("the-verifier-code");
     DumbCallbackContext callbackContext = new DumbCallbackContext(request);
     underTest.callback(callbackContext);
 
@@ -190,7 +188,7 @@ public class IntegrationTest {
             "    \"locale\": \"en-US\"\n" +
             "}"));
 
-    HttpServletRequest request = newRequest("the-verifier-code");
+    HttpRequest request = newRequest("the-verifier-code");
     DumbCallbackContext callbackContext = new DumbCallbackContext(request);
     underTest.callback(callbackContext);
 
@@ -205,20 +203,20 @@ public class IntegrationTest {
     return new MockResponse().setBody("{\"access_token\":\"e72e16c7e42f292c6912e7710c838347ae178b4a\",\"scope\":\"user\"}");
   }
 
-  private static HttpServletRequest newRequest(String verifierCode) {
-    HttpServletRequest request = mock(HttpServletRequest.class);
+  private static HttpRequest newRequest(String verifierCode) {
+    HttpRequest request = mock(HttpRequest.class);
     when(request.getParameter("code")).thenReturn(verifierCode);
     return request;
   }
 
   private static class DumbCallbackContext implements OAuth2IdentityProvider.CallbackContext {
-    final HttpServletRequest request;
+    final HttpRequest request;
     final AtomicBoolean csrfStateVerified = new AtomicBoolean(false);
     final AtomicBoolean redirectSent = new AtomicBoolean(false);
     final AtomicBoolean redirectedToRequestedPage = new AtomicBoolean(false);
     UserIdentity userIdentity = null;
 
-    public DumbCallbackContext(HttpServletRequest request) {
+    public DumbCallbackContext(HttpRequest request) {
       this.request = request;
     }
 
@@ -243,13 +241,13 @@ public class IntegrationTest {
     }
 
     @Override
-    public HttpServletRequest getRequest() {
+    public HttpRequest getRequest() {
       return request;
     }
 
     @Override
-    public HttpServletResponse getResponse() {
-      return new HttpServletResponse() {
+    public HttpResponse getResponse() {
+      return new HttpResponse() {
         @Override
         public void addCookie(Cookie cookie) {
 
@@ -457,12 +455,12 @@ public class IntegrationTest {
     }
 
     @Override
-    public HttpServletRequest getRequest() {
+    public HttpRequest getRequest() {
       return null;
     }
 
     @Override
-    public HttpServletResponse getResponse() {
+    public HttpResponse getResponse() {
       return null;
     }
   }
