@@ -102,6 +102,16 @@ public class GoogleIdentityProvider implements OAuth2IdentityProvider {
   }
 
   @Override
+    public HttpRequest getHttpRequest() {
+      return request;
+    }
+
+    @Override
+    public HttpResponse getHttpResponse() {
+      return response;
+    }
+
+  @Override
   public boolean allowsUsersToSignUp() {
     return settings.allowUsersToSignUp();
   }
@@ -117,7 +127,7 @@ public class GoogleIdentityProvider implements OAuth2IdentityProvider {
 
   @Override
   public void callback(CallbackContext context) {
-    HttpRequest request = context.getHttpRequest();
+    HttpServletRequest request = context.HttpRequest();
     OAuthService scribe = newScribeBuilder(context).build();
     String oAuthVerifier = request.getParameter("code");
     Token accessToken = scribe.getAccessToken(EMPTY_TOKEN, new Verifier(oAuthVerifier));
