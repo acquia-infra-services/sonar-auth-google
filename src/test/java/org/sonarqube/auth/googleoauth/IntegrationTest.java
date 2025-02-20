@@ -213,25 +213,47 @@ public class IntegrationTest {
     return request;
   }
 
+  @Test
+public void verify_csrf_state() throws IOException {
+    google.enqueue(newSuccessfulAccessTokenResponse());
+    google.enqueue(new MockResponse().setBody("{\n" +
+        "    \"email\": \"john.smith@googleoauth.com\",\n" +
+        "    \"verified_email\": true,\n" +
+        "    \"name\": \"John Smith\"\n" +
+        "}"));
+
+    HttpRequest request = mock(HttpRequest.class);
+    when(request.getParameter("state")).thenReturn("expected-state");
+    DumbCallbackContext callbackContext = new DumbCallbackContext(request);
+
+    // This should not throw exception
+    callbackContext.verifyCsrfState();
+    assertThat(callbackContext.csrfStateVerified.get()).isTrue();
+
+    // Should throw exception for invalid state
+    when(request.getParameter("state")).thenReturn("unexpected-state");
+    expectedException.expect(IllegalStateException.class);
+    expectedException.expectMessage("CSRF state does not match");
+    callbackContext.verifyCsrfState();
+}
+
   private static class DumbCallbackContext implements OAuth2IdentityProvider.CallbackContext {
     final HttpRequest request;
     final AtomicBoolean csrfStateVerified = new AtomicBoolean(false);
     final AtomicBoolean redirectSent = new AtomicBoolean(false);
-    final AtomicBoolean redirectedToRequestedPage = new AtomicBoolean(false);
-    UserIdentity userIdentity = null;
+    UserIdentity userIdentity;
 
     public DumbCallbackContext(HttpRequest request) {
-      this.request = request;
+        this.request = request;
     }
 
     @Override
-    public void verifyCsrfState(String state) {
-      this.csrfStateVerified.set(true);
-    }
-
-    @Override
-    public void redirectToRequestedPage() {
-      redirectedToRequestedPage.set(true);
+    public void verifyCsrfState() {
+        String state = request.getParameter("state");
+        if (state == null || !state.equals("expected-state")) {
+            throw new IllegalStateException("CSRF state does not match");
+        }
+        csrfStateVerified.set(true);
     }
 
     @Override
@@ -432,6 +454,12 @@ public class IntegrationTest {
           return null;
         }
       };
+    }
+
+    @Override
+    public void redirectToRequestedPage() {
+        // Implementation for test context - can be empty or set a flag
+        redirectSent.set(true);
     }
   }
 
