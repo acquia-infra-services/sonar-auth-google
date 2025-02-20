@@ -42,20 +42,23 @@ package org.sonarqube.auth.googleoauth;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
+
+import java.util.Map;
+
 import org.sonar.api.config.PropertyDefinitions;
 import org.sonar.api.config.Settings;
+import org.sonar.api.config.internal.MapSettings;
 import org.sonar.api.server.authentication.UserIdentity;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
+import org.sonar.api.utils.System2;
 
 public class UserIdentityFactoryTest {
 
   @Rule
   public ExpectedException expectedException = ExpectedException.none();
 
-  Settings settings = mock(Settings.class);
+  MapSettings settings = new MapSettings(new PropertyDefinitions(System2.INSTANCE, GoogleSettings.definitions()));
   UserIdentityFactory underTest = new UserIdentityFactory(new GoogleSettings(settings));
 
   /**
@@ -73,7 +76,7 @@ public class UserIdentityFactoryTest {
             "    \"picture\": \"https://lh3.googleusercontent.com/-AAAAAAAA/AAAAAAAAAAA/AAAAAAAAAAA/AAAAAAAAAA/photo.jpg\",\n" +
             "    \"locale\": \"en-US\"\n" +
             "}");
-    when(settings.getString(GoogleSettings.LOGIN_STRATEGY)).thenReturn(GoogleSettings.LOGIN_STRATEGY_PROVIDER_LOGIN);
+    settings.setProperty(GoogleSettings.LOGIN_STRATEGY, GoogleSettings.LOGIN_STRATEGY_PROVIDER_LOGIN);
     UserIdentity identity = underTest.create(gson);
     assertThat(identity.getLogin()).isEqualTo("john.smith@googleoauth.com");
     assertThat(identity.getName()).isEqualTo("John Smith");
@@ -92,7 +95,7 @@ public class UserIdentityFactoryTest {
             "    \"picture\": \"https://lh3.googleusercontent.com/-AAAAAAAA/AAAAAAAAAAA/AAAAAAAAAAA/AAAAAAAAAA/photo.jpg\",\n" +
             "    \"locale\": \"en-US\"\n" +
             "}");
-    when(settings.getString(GoogleSettings.LOGIN_STRATEGY)).thenReturn(GoogleSettings.LOGIN_STRATEGY_UNIQUE);
+    settings.setProperty(GoogleSettings.LOGIN_STRATEGY, GoogleSettings.LOGIN_STRATEGY_UNIQUE);
 
     UserIdentity identity = underTest.create(gson);
     assertThat(identity.getLogin()).isEqualTo("john.smith@googleoauth.com");
@@ -118,7 +121,7 @@ public class UserIdentityFactoryTest {
 
   @Test
   public void throw_ISE_if_strategy_is_not_supported() {
-    when(settings.getString(GoogleSettings.LOGIN_STRATEGY)).thenReturn("xxx");
+    settings.setProperty(GoogleSettings.LOGIN_STRATEGY, "xxx");
 
     expectedException.expect(IllegalStateException.class);
     expectedException.expectMessage("Login strategy not supported : xxx");

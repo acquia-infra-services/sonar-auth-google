@@ -39,56 +39,54 @@ package org.sonarqube.auth.googleoauth;
  * #L%
  */
 
- import org.junit.Before;
- import org.junit.Test;
- import org.sonar.api.config.Settings;
- import org.sonar.api.config.PropertyDefinitions;
- import static org.mockito.Mockito.mock;
- import static org.mockito.Mockito.when;
- import static org.assertj.core.api.Assertions.assertThat;
- import static org.sonarqube.auth.googleoauth.GoogleSettings.LOGIN_STRATEGY_DEFAULT_VALUE;
- import static org.sonarqube.auth.googleoauth.GoogleSettings.LOGIN_STRATEGY_PROVIDER_LOGIN;
- 
- public class GoogleSettingsTest {
- 
-  private Settings settings;
-  private GoogleSettings underTest;
- 
-  @Before
-  public void setUp() {
-      settings = mock(Settings.class);
-      underTest = new GoogleSettings(settings);
-  }
- 
+import org.junit.Test;
+
+import java.util.Map;
+
+import org.sonar.api.config.PropertyDefinitions;
+import org.sonar.api.config.Settings;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import org.sonar.api.config.internal.MapSettings;
+import org.sonar.api.utils.System2;
+import static org.sonarqube.auth.googleoauth.GoogleSettings.LOGIN_STRATEGY_DEFAULT_VALUE;
+import static org.sonarqube.auth.googleoauth.GoogleSettings.LOGIN_STRATEGY_PROVIDER_LOGIN;
+
+public class GoogleSettingsTest {
+
+  MapSettings settings = new MapSettings(new PropertyDefinitions(System2.INSTANCE, GoogleSettings.definitions()));
+
+  GoogleSettings underTest = new GoogleSettings(settings);
+
   @Test
   public void is_enabled() {
-      when(settings.getString("sonar.auth.googleoauth.clientId.secured")).thenReturn("id");
-      when(settings.getString("sonar.auth.googleoauth.clientSecret.secured")).thenReturn("secret");
-      when(settings.getString("sonar.auth.googleoauth.loginStrategy")).thenReturn(LOGIN_STRATEGY_DEFAULT_VALUE);
-      
-      when(settings.getBoolean("sonar.auth.googleoauth.enabled")).thenReturn(true);
-      assertThat(underTest.isEnabled()).isTrue();
+    settings.setProperty("sonar.auth.googleoauth.clientId.secured", "id");
+    settings.setProperty("sonar.auth.googleoauth.clientSecret.secured", "secret");
+    settings.setProperty("sonar.auth.googleoauth.loginStrategy", LOGIN_STRATEGY_DEFAULT_VALUE);
 
-      when(settings.getBoolean("sonar.auth.googleoauth.enabled")).thenReturn(false);
-      assertThat(underTest.isEnabled()).isFalse();
+    settings.setProperty("sonar.auth.googleoauth.enabled", true);
+    assertThat(underTest.isEnabled()).isTrue();
+
+    settings.setProperty("sonar.auth.googleoauth.enabled", false);
+    assertThat(underTest.isEnabled()).isFalse();
   }
 
   @Test
   public void is_enabled_always_return_false_when_client_id_is_null() {
-    when(settings.getBoolean("sonar.auth.googleoauth.enabled")).thenReturn(true);
-    when(settings.getString("sonar.auth.googleoauth.clientId.secured")).thenReturn(null);
-    when(settings.getString("sonar.auth.googleoauth.clientSecret.secured")).thenReturn("secret");
-    when(settings.getString("sonar.auth.googleoauth.loginStrategy")).thenReturn(LOGIN_STRATEGY_DEFAULT_VALUE);
+    settings.setProperty("sonar.auth.googleoauth.enabled", true);
+    settings.setProperty("sonar.auth.googleoauth.clientId.secured", (String) null);
+    settings.setProperty("sonar.auth.googleoauth.clientSecret.secured", "secret");
+    settings.setProperty("sonar.auth.googleoauth.loginStrategy", LOGIN_STRATEGY_DEFAULT_VALUE);
 
     assertThat(underTest.isEnabled()).isFalse();
   }
 
   @Test
   public void is_enabled_always_return_false_when_client_secret_is_null() {
-    when(settings.getBoolean("sonar.auth.googleoauth.enabled")).thenReturn(true);
-    when(settings.getString("sonar.auth.googleoauth.clientId.secured")).thenReturn("id");
-    when(settings.getString("sonar.auth.googleoauth.clientSecret.secured")).thenReturn(null);
-    when(settings.getString("sonar.auth.googleoauth.loginStrategy")).thenReturn(LOGIN_STRATEGY_DEFAULT_VALUE);
+    settings.setProperty("sonar.auth.googleoauth.enabled", true);
+    settings.setProperty("sonar.auth.googleoauth.clientId.secured", "id");
+    settings.setProperty("sonar.auth.googleoauth.clientSecret.secured", (String) null);
+    settings.setProperty("sonar.auth.googleoauth.loginStrategy", LOGIN_STRATEGY_DEFAULT_VALUE);
 
     assertThat(underTest.isEnabled()).isFalse();
   }
@@ -100,28 +98,28 @@ package org.sonarqube.auth.googleoauth;
 
   @Test
   public void return_client_id() {
-    when(settings.getString("sonar.auth.googleoauth.clientId.secured")).thenReturn("id");   
+    settings.setProperty("sonar.auth.googleoauth.clientId.secured", "id");
     assertThat(underTest.clientId()).isEqualTo("id");
   }
 
   @Test
   public void return_client_secret() {
-    when(settings.getString("sonar.auth.googleoauth.clientSecret.secured")).thenReturn("secret");   
+    settings.setProperty("sonar.auth.googleoauth.clientSecret.secured", "secret");
     assertThat(underTest.clientSecret()).isEqualTo("secret");
   }
 
   @Test
   public void return_login_strategy() {
-    when(settings.getString("sonar.auth.googleoauth.loginStrategy")).thenReturn(LOGIN_STRATEGY_PROVIDER_LOGIN); 
+    settings.setProperty("sonar.auth.googleoauth.loginStrategy", LOGIN_STRATEGY_PROVIDER_LOGIN);
     assertThat(underTest.loginStrategy()).isEqualTo(LOGIN_STRATEGY_PROVIDER_LOGIN);
   }
 
   @Test
   public void allow_users_to_sign_up() {
-    when(settings.getBoolean("sonar.auth.googleoauth.allowUsersToSignUp")).thenReturn(true);
+    settings.setProperty("sonar.auth.googleoauth.allowUsersToSignUp", "true");
     assertThat(underTest.allowUsersToSignUp()).isTrue();
 
-    when(settings.getBoolean("sonar.auth.googleoauth.allowUsersToSignUp")).thenReturn(false);
+    settings.setProperty("sonar.auth.googleoauth.allowUsersToSignUp", "false");
     assertThat(underTest.allowUsersToSignUp()).isFalse();
   }
 
