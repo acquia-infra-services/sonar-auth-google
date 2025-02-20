@@ -46,17 +46,20 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
+import org.sonar.api.config.Configuration;
 import org.sonar.api.config.PropertyDefinitions;
-import org.sonar.api.config.Settings;
 import org.sonar.api.server.authentication.OAuth2IdentityProvider;
 import org.sonar.api.server.authentication.UserIdentity;
+import org.sonar.api.server.http.Cookie;
 import org.sonar.api.server.http.HttpRequest;
 import org.sonar.api.server.http.HttpResponse;
+import org.sonar.api.config.Settings;
 
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.util.Collection;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static java.lang.String.format;
@@ -75,7 +78,7 @@ public class IntegrationTest {
   public ExpectedException expectedException = ExpectedException.none();
 
   // load settings with default values
-  Settings settings = new Settings(new PropertyDefinitions(GoogleSettings.definitions()));
+  Settings settings = mock(Settings.class);
   GoogleSettings googleSettings = new GoogleSettings(settings);
   UserIdentityFactory userIdentityFactory = new UserIdentityFactory(googleSettings);
   GoogleScribeApi scribeApi = new GoogleScribeApi(googleSettings);
@@ -83,12 +86,13 @@ public class IntegrationTest {
 
   @Before
   public void enable() {
-    settings.setProperty("sonar.auth.googleoauth.clientId.secured", "the_id");
-    settings.setProperty("sonar.auth.googleoauth.clientSecret.secured", "the_secret");
-    settings.setProperty("sonar.auth.googleoauth.enabled", true);
-    settings.setProperty("sonar.auth.googleoauth.limitOauthDomain", "googleoauth.com");
-    settings.setProperty("sonar.auth.googleoauth.apiUrl", format("http://%s:%d", google.getHostName(), google.getPort()));
-    settings.setProperty("sonar.auth.googleoauth.webUrl", format("http://%s:%d/o/oauth2/auth", google.getHostName(), google.getPort()));
+    // Update the when statements to use Settings methods instead of Configuration methods
+    when(settings.getString("sonar.auth.googleoauth.clientId.secured")).thenReturn("the_id");
+    when(settings.getString("sonar.auth.googleoauth.clientSecret.secured")).thenReturn("the_secret");
+    when(settings.getBoolean("sonar.auth.googleoauth.enabled")).thenReturn(true);
+    when(settings.getString("sonar.auth.googleoauth.limitOauthDomain")).thenReturn("googleoauth.com");
+    when(settings.getString("sonar.auth.googleoauth.apiUrl")).thenReturn(format("http://%s:%d", google.getHostName(), google.getPort()));
+    when(settings.getString("sonar.auth.googleoauth.webUrl")).thenReturn(format("http://%s:%d/o/oauth2/auth", google.getHostName(), google.getPort()));
   }
 
   /**
@@ -154,7 +158,7 @@ public class IntegrationTest {
    */
   @Test
   public void callback_on_successful_authentication_without_domain() throws IOException, InterruptedException {
-    settings.removeProperty("sonar.auth.googleoauth.limitOauthDomain");
+    when(settings.getString("sonar.auth.googleoauth.limitOauthDomain")).thenReturn(null);
     callback_on_successful_authentication();
   }
 
@@ -221,7 +225,7 @@ public class IntegrationTest {
     }
 
     @Override
-    public void verifyCsrfState() {
+    public void verifyCsrfState(String state) {
       this.csrfStateVerified.set(true);
     }
 
