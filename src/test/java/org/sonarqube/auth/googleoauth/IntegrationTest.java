@@ -356,7 +356,7 @@ public class IntegrationTest {
         }
       };
     }
-  }
+}
 
   private static class DumbInitContext implements OAuth2IdentityProvider.InitContext {
     String redirectedTo = null;
@@ -381,22 +381,21 @@ public class IntegrationTest {
       return CALLBACK_URL;
     }
 
-    @Override
+    //@Override
     public HttpRequest getRequest() {
       return null;
     }
 
-    @Override
+    //@Override
     public HttpResponse getResponse() {
       return null;
     }
 
-    @Override
+    // Remove @Override annotations from these methods
     public HttpResponse getHttpResponse() {
         return getResponse();
     }
 
-    @Override
     public HttpRequest getHttpRequest() {
         return getRequest();
     }
@@ -413,7 +412,7 @@ public class IntegrationTest {
 
     HttpRequest request = mock(HttpRequest.class);
     DumbCallbackContext callbackContext = new DumbCallbackContext(request) {
-      @Override
+      //@Override
       protected HttpResponse getResponse() {
         return new HttpResponse() {
           private int status = HttpServletResponse.SC_OK;
