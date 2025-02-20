@@ -58,6 +58,7 @@ import org.sonar.api.config.Settings;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -69,6 +70,8 @@ import static org.mockito.Mockito.when;
 
 import jakarta.servlet.ServletOutputStream;
 import jakarta.servlet.http.HttpServletResponse;
+
+import java.util.Collections;
 
 public class IntegrationTest {
 
@@ -295,12 +298,30 @@ public class IntegrationTest {
 
     private HttpResponse getResponse() {
       return new HttpResponse() {
+        private int status = HttpServletResponse.SC_OK;
+
         @Override
         public void addCookie(Cookie cookie) {
         }
 
         @Override
         public void setStatus(int sc) {
+          this.status = sc;
+        }
+
+        @Override
+        public int getStatus() {
+          return status;
+        }
+
+        @Override
+        public Collection<String> getHeaders(String name) {
+          return Collections.emptyList();
+        }
+
+        @Override
+        public String getHeader(String name) {
+          return null;
         }
 
         @Override
@@ -313,12 +334,25 @@ public class IntegrationTest {
         }
 
         @Override
+        public void addHeader(String name, String value) {
+        }
+
+        @Override
         public ServletOutputStream getOutputStream() throws IOException {
           return null;
         }
 
+        @Override
+        public PrintWriter getWriter() throws IOException {
+          return new PrintWriter(System.out);
+        }
+
         @Override 
         public void setCharacterEncoding(String charset) {
+        }
+
+        @Override
+        public void setContentType(String type) {
         }
       };
     }
@@ -366,5 +400,85 @@ public class IntegrationTest {
     public HttpRequest getHttpRequest() {
         return getRequest();
     }
+  }
+
+  @Test
+  public void callback_handles_response_writer() throws IOException {
+    google.enqueue(newSuccessfulAccessTokenResponse());
+    google.enqueue(new MockResponse().setBody("{\n" +
+      "    \"email\": \"john.smith@googleoauth.com\",\n" +
+      "    \"verified_email\": true,\n" +
+      "    \"name\": \"John Smith\"\n" +
+      "}"));
+
+    HttpRequest request = mock(HttpRequest.class);
+    DumbCallbackContext callbackContext = new DumbCallbackContext(request) {
+      @Override
+      protected HttpResponse getResponse() {
+        return new HttpResponse() {
+          private int status = HttpServletResponse.SC_OK;
+
+          @Override
+          public void addCookie(Cookie cookie) {
+          }
+
+          @Override
+          public void setStatus(int sc) {
+            this.status = sc;
+          }
+
+          @Override
+          public int getStatus() {
+            return status;
+          }
+
+          @Override
+          public Collection<String> getHeaders(String name) {
+            return Collections.emptyList();
+          }
+
+          @Override
+          public String getHeader(String name) {
+            return null;
+          }
+
+          @Override
+          public void sendRedirect(String location) throws IOException {
+            redirectSent.set(true);
+          }
+
+          @Override
+          public void setHeader(String name, String value) {
+          }
+
+          @Override
+          public void addHeader(String name, String value) {
+          }
+
+          @Override
+          public ServletOutputStream getOutputStream() throws IOException {
+            return null;
+          }
+
+          @Override
+          public PrintWriter getWriter() throws IOException {
+            return new PrintWriter(System.out);
+          }
+
+          @Override 
+          public void setCharacterEncoding(String charset) {
+          }
+
+          @Override
+          public void setContentType(String type) {
+          }
+        };
+      }
+    };
+
+    underTest.callback(callbackContext);
+
+    assertThat(callbackContext.redirectSent.get()).isTrue();
+    assertThat(callbackContext.userIdentity).isNotNull();
   }
 }
