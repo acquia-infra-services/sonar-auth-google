@@ -252,7 +252,7 @@ public class IntegrationTest {
 
     @Override
     public void verifyCsrfState() {
-        String state = request.getParameter("state");
+        String state = getHttpRequest().getParameter("state");
         if (state == null || !state.equals("expected-state")) {
             throw new IllegalStateException("CSRF state does not match");
         }
