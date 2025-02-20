@@ -214,7 +214,7 @@ public class IntegrationTest {
   }
 
   @Test
-public void verify_csrf_state() throws IOException {
+  public void verify_csrf_state() throws IOException {
     google.enqueue(newSuccessfulAccessTokenResponse());
     google.enqueue(new MockResponse().setBody("{\n" +
         "    \"email\": \"john.smith@googleoauth.com\",\n" +
@@ -227,14 +227,14 @@ public void verify_csrf_state() throws IOException {
     DumbCallbackContext callbackContext = new DumbCallbackContext(request);
 
     // This should not throw exception
-    callbackContext.verifyCsrfState();
+    callbackContext.verifyCsrfState("expected-state");
     assertThat(callbackContext.csrfStateVerified.get()).isTrue();
 
     // Should throw exception for invalid state
     when(request.getParameter("state")).thenReturn("unexpected-state");
     expectedException.expect(IllegalStateException.class);
     expectedException.expectMessage("CSRF state does not match");
-    callbackContext.verifyCsrfState();
+    callbackContext.verifyCsrfState("expected-state");
 }
 
   private static class DumbCallbackContext implements OAuth2IdentityProvider.CallbackContext {
@@ -251,6 +251,15 @@ public void verify_csrf_state() throws IOException {
     public void verifyCsrfState() {
         String state = request.getParameter("state");
         if (state == null || !state.equals("expected-state")) {
+            throw new IllegalStateException("CSRF state does not match");
+        }
+        csrfStateVerified.set(true);
+    }
+
+    @Override
+    public void verifyCsrfState(String expectedState) {
+        String state = request.getParameter("state");
+        if (state == null || !state.equals(expectedState)) {
             throw new IllegalStateException("CSRF state does not match");
         }
         csrfStateVerified.set(true);
@@ -461,6 +470,11 @@ public void verify_csrf_state() throws IOException {
         // Implementation for test context - can be empty or set a flag
         redirectSent.set(true);
     }
+
+    @Override
+    public HttpResponse getHttpResponse() {
+        return getResponse();
+    }
   }
 
   private static class DumbInitContext implements OAuth2IdentityProvider.InitContext {
@@ -494,6 +508,11 @@ public void verify_csrf_state() throws IOException {
     @Override
     public HttpResponse getResponse() {
       return null;
+    }
+
+    @Override
+    public HttpResponse getHttpResponse() {
+        return getResponse();
     }
   }
 }
