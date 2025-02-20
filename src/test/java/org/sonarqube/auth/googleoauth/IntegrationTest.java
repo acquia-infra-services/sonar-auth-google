@@ -67,6 +67,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import jakarta.servlet.ServletOutputStream;
+import jakarta.servlet.http.HttpServletResponse;
+
 public class IntegrationTest {
 
   private static final String CALLBACK_URL = "http://localhost/oauth/callback/googleoauth";
