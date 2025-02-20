@@ -47,13 +47,15 @@ import org.sonar.api.config.Settings;
 import org.sonar.api.server.authentication.UserIdentity;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class UserIdentityFactoryTest {
 
   @Rule
   public ExpectedException expectedException = ExpectedException.none();
 
-  Settings settings = new Settings(new PropertyDefinitions(GoogleSettings.definitions()));
+  Settings settings = mock(Settings.class);
   UserIdentityFactory underTest = new UserIdentityFactory(new GoogleSettings(settings));
 
   /**
@@ -71,7 +73,7 @@ public class UserIdentityFactoryTest {
             "    \"picture\": \"https://lh3.googleusercontent.com/-AAAAAAAA/AAAAAAAAAAA/AAAAAAAAAAA/AAAAAAAAAA/photo.jpg\",\n" +
             "    \"locale\": \"en-US\"\n" +
             "}");
-    settings.setProperty(GoogleSettings.LOGIN_STRATEGY, GoogleSettings.LOGIN_STRATEGY_PROVIDER_LOGIN);
+    when(settings.getString(GoogleSettings.LOGIN_STRATEGY)).thenReturn(GoogleSettings.LOGIN_STRATEGY_PROVIDER_LOGIN);
     UserIdentity identity = underTest.create(gson);
     assertThat(identity.getLogin()).isEqualTo("john.smith@googleoauth.com");
     assertThat(identity.getName()).isEqualTo("John Smith");
@@ -90,7 +92,7 @@ public class UserIdentityFactoryTest {
             "    \"picture\": \"https://lh3.googleusercontent.com/-AAAAAAAA/AAAAAAAAAAA/AAAAAAAAAAA/AAAAAAAAAA/photo.jpg\",\n" +
             "    \"locale\": \"en-US\"\n" +
             "}");
-    settings.setProperty(GoogleSettings.LOGIN_STRATEGY, GoogleSettings.LOGIN_STRATEGY_UNIQUE);
+    when(settings.getString(GoogleSettings.LOGIN_STRATEGY)).thenReturn(GoogleSettings.LOGIN_STRATEGY_UNIQUE);
 
     UserIdentity identity = underTest.create(gson);
     assertThat(identity.getLogin()).isEqualTo("john.smith@googleoauth.com");
@@ -116,7 +118,7 @@ public class UserIdentityFactoryTest {
 
   @Test
   public void throw_ISE_if_strategy_is_not_supported() {
-    settings.setProperty(GoogleSettings.LOGIN_STRATEGY, "xxx");
+    when(settings.getString(GoogleSettings.LOGIN_STRATEGY)).thenReturn("xxx");
 
     expectedException.expect(IllegalStateException.class);
     expectedException.expectMessage("Login strategy not supported : xxx");
