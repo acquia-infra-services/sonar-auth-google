@@ -258,7 +258,7 @@ public class IntegrationTest {
 
     @Override
     public void verifyCsrfState(String expectedState) {
-        String state = request.getParameter("state");
+        String state = getHttpRequest().getParameter("state");
         if (state == null || !state.equals(expectedState)) {
             throw new IllegalStateException("CSRF state does not match");
         }
@@ -267,21 +267,30 @@ public class IntegrationTest {
 
     @Override
     public void authenticate(UserIdentity userIdentity) {
-      this.userIdentity = userIdentity;
+        this.userIdentity = userIdentity;
     }
 
     @Override
     public String getCallbackUrl() {
-      return CALLBACK_URL;
+        return CALLBACK_URL;
     }
 
     @Override
-    public HttpRequest getRequest() {
-      return request;
+    public HttpRequest getHttpRequest() {
+        return request;
     }
 
     @Override
-    public HttpResponse getResponse() {
+    public HttpResponse getHttpResponse() {
+        return getResponse();
+    }
+
+    @Override
+    public void redirectToRequestedPage() {
+        redirectSent.set(true);
+    }
+
+    private HttpResponse getResponse() {
       return new HttpResponse() {
         @Override
         public void addCookie(Cookie cookie) {
@@ -464,17 +473,6 @@ public class IntegrationTest {
         }
       };
     }
-
-    @Override
-    public void redirectToRequestedPage() {
-        // Implementation for test context - can be empty or set a flag
-        redirectSent.set(true);
-    }
-
-    @Override
-    public HttpResponse getHttpResponse() {
-        return getResponse();
-    }
   }
 
   private static class DumbInitContext implements OAuth2IdentityProvider.InitContext {
@@ -513,6 +511,11 @@ public class IntegrationTest {
     @Override
     public HttpResponse getHttpResponse() {
         return getResponse();
+    }
+
+    @Override
+    public HttpRequest getHttpRequest() {
+        return getRequest();
     }
   }
 }
