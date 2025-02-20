@@ -313,18 +313,12 @@ public class IntegrationTest {
         }
 
         @Override
-        public String getHeader(String name) {
+        public ServletOutputStream getOutputStream() throws IOException {
           return null;
         }
 
-        @Override
-        public Collection<String> getHeaders(String name) {
-          return null;
-        }
-
-        @Override
-        public Collection<String> getHeaderNames() {
-          return null;
+        @Override 
+        public void setCharacterEncoding(String charset) {
         }
       };
     }
