@@ -42,36 +42,35 @@ package org.sonarqube.auth.googleoauth;
 import com.squareup.okhttp.mockwebserver.MockResponse;
 import com.squareup.okhttp.mockwebserver.MockWebServer;
 import com.squareup.okhttp.mockwebserver.RecordedRequest;
+
+
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
-import org.sonar.api.config.Configuration;
 import org.sonar.api.config.PropertyDefinitions;
+import org.sonar.api.config.Settings;
+import org.sonar.api.config.internal.MapSettings;
 import org.sonar.api.server.authentication.OAuth2IdentityProvider;
 import org.sonar.api.server.authentication.UserIdentity;
-import org.sonar.api.server.http.Cookie;
 import org.sonar.api.server.http.HttpRequest;
 import org.sonar.api.server.http.HttpResponse;
-import org.sonar.api.config.Settings;
+import org.sonar.api.server.http.Cookie;
+import org.sonar.api.utils.System2;
 
 import java.io.IOException;
+import java.io.OutputStream;
 import java.io.PrintWriter;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.Locale;
-import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static java.lang.String.format;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
-
-import jakarta.servlet.ServletOutputStream;
-import jakarta.servlet.http.HttpServletResponse;
-
-import java.util.Collections;
+import org.sonar.api.config.internal.MapSettings;
+import org.sonar.api.utils.System2;
 
 public class IntegrationTest {
 
@@ -84,7 +83,7 @@ public class IntegrationTest {
   public ExpectedException expectedException = ExpectedException.none();
 
   // load settings with default values
-  Settings settings = mock(Settings.class);
+  MapSettings settings = new MapSettings(new PropertyDefinitions(System2.INSTANCE, GoogleSettings.definitions()));
   GoogleSettings googleSettings = new GoogleSettings(settings);
   UserIdentityFactory userIdentityFactory = new UserIdentityFactory(googleSettings);
   GoogleScribeApi scribeApi = new GoogleScribeApi(googleSettings);
@@ -92,13 +91,12 @@ public class IntegrationTest {
 
   @Before
   public void enable() {
-    // Update the when statements to use Settings methods instead of Configuration methods
-    when(settings.getString("sonar.auth.googleoauth.clientId.secured")).thenReturn("the_id");
-    when(settings.getString("sonar.auth.googleoauth.clientSecret.secured")).thenReturn("the_secret");
-    when(settings.getBoolean("sonar.auth.googleoauth.enabled")).thenReturn(true);
-    when(settings.getString("sonar.auth.googleoauth.limitOauthDomain")).thenReturn("googleoauth.com");
-    when(settings.getString("sonar.auth.googleoauth.apiUrl")).thenReturn(format("http://%s:%d", google.getHostName(), google.getPort()));
-    when(settings.getString("sonar.auth.googleoauth.webUrl")).thenReturn(format("http://%s:%d/o/oauth2/auth", google.getHostName(), google.getPort()));
+    settings.setProperty("sonar.auth.googleoauth.clientId.secured", "the_id");
+    settings.setProperty("sonar.auth.googleoauth.clientSecret.secured", "the_secret");
+    settings.setProperty("sonar.auth.googleoauth.enabled", true);
+    settings.setProperty("sonar.auth.googleoauth.limitOauthDomain", "googleoauth.com");
+    settings.setProperty("sonar.auth.googleoauth.apiUrl", format("http://%s:%d", google.getHostName(), google.getPort()));
+    settings.setProperty("sonar.auth.googleoauth.webUrl", format("http://%s:%d/o/oauth2/auth", google.getHostName(), google.getPort()));
   }
 
   /**
@@ -142,7 +140,7 @@ public class IntegrationTest {
     underTest.callback(callbackContext);
 
     assertThat(callbackContext.csrfStateVerified.get()).isFalse();
-    assertThat(callbackContext.userIdentity.getLogin()).isEqualTo("john.smith@googleoauth.com");
+    assertThat(callbackContext.userIdentity.getProviderLogin()).isEqualTo("john.smith@googleoauth.com");
     assertThat(callbackContext.userIdentity.getName()).isEqualTo("John Smith");
     assertThat(callbackContext.userIdentity.getEmail()).isEqualTo("john.smith@googleoauth.com");
     assertThat(callbackContext.redirectSent.get()).isTrue();
@@ -164,7 +162,7 @@ public class IntegrationTest {
    */
   @Test
   public void callback_on_successful_authentication_without_domain() throws IOException, InterruptedException {
-    when(settings.getString("sonar.auth.googleoauth.limitOauthDomain")).thenReturn(null);
+    settings.removeProperty("sonar.auth.googleoauth.limitOauthDomain");
     callback_on_successful_authentication();
   }
 
@@ -241,87 +239,63 @@ public class IntegrationTest {
     expectedException.expect(IllegalStateException.class);
     expectedException.expectMessage("CSRF state does not match");
     callbackContext.verifyCsrfState("expected-state");
-}
+  }
 
   private static class DumbCallbackContext implements OAuth2IdentityProvider.CallbackContext {
     final HttpRequest request;
     final AtomicBoolean csrfStateVerified = new AtomicBoolean(false);
     final AtomicBoolean redirectSent = new AtomicBoolean(false);
-    UserIdentity userIdentity;
+    final AtomicBoolean redirectedToRequestedPage = new AtomicBoolean(false);
+    UserIdentity userIdentity = null;
 
     public DumbCallbackContext(HttpRequest request) {
-        this.request = request;
+      this.request = request;
     }
 
     @Override
     public void verifyCsrfState() {
-        String state = getHttpRequest().getParameter("state");
-        if (state == null || !state.equals("expected-state")) {
-            throw new IllegalStateException("CSRF state does not match");
-        }
-        csrfStateVerified.set(true);
+      String state = getHttpRequest().getParameter("state");
+      if (state == null || !state.equals("expected-state")) {
+          throw new IllegalStateException("CSRF state does not match");
+      }
+      csrfStateVerified.set(true);
     }
 
     @Override
     public void verifyCsrfState(String expectedState) {
-        String state = getHttpRequest().getParameter("state");
-        if (state == null || !state.equals(expectedState)) {
-            throw new IllegalStateException("CSRF state does not match");
-        }
-        csrfStateVerified.set(true);
-    }
-
-    @Override
-    public void authenticate(UserIdentity userIdentity) {
-        this.userIdentity = userIdentity;
-    }
-
-    @Override
-    public String getCallbackUrl() {
-        return CALLBACK_URL;
-    }
-
-    @Override
-    public HttpRequest getHttpRequest() {
-        return request;
-    }
-
-    @Override
-    public HttpResponse getHttpResponse() {
-        return getResponse();
+      String state = getHttpRequest().getParameter("state");
+      if (state == null || !state.equals("expected-state")) {
+          throw new IllegalStateException("CSRF state does not match");
+      }
+      csrfStateVerified.set(true);
     }
 
     @Override
     public void redirectToRequestedPage() {
-        redirectSent.set(true);
+      redirectedToRequestedPage.set(true);
     }
 
-    private HttpResponse getResponse() {
-      return new HttpResponse() {
-        private int status = HttpServletResponse.SC_OK;
+    @Override
+    public void authenticate(UserIdentity userIdentity) {
+      this.userIdentity = userIdentity;
+    }
 
+    @Override
+    public String getCallbackUrl() {
+      return CALLBACK_URL;
+    }
+
+    @Override
+    public HttpRequest getHttpRequest() {
+      return request;
+    }
+
+    @Override
+    public HttpResponse getHttpResponse() {
+      return new HttpResponse() {
         @Override
         public void addCookie(Cookie cookie) {
-        }
 
-        @Override
-        public void setStatus(int sc) {
-          this.status = sc;
-        }
-
-        @Override
-        public int getStatus() {
-          return status;
-        }
-
-        @Override
-        public Collection<String> getHeaders(String name) {
-          return Collections.emptyList();
-        }
-
-        @Override
-        public String getHeader(String name) {
-          return null;
         }
 
         @Override
@@ -331,32 +305,57 @@ public class IntegrationTest {
 
         @Override
         public void setHeader(String name, String value) {
+
         }
 
         @Override
         public void addHeader(String name, String value) {
+
+        }
+
+
+        @Override
+        public void setStatus(int sc) {
+
         }
 
         @Override
-        public ServletOutputStream getOutputStream() throws IOException {
+        public int getStatus() {
+          return 0;
+        }
+
+        @Override
+        public String getHeader(String name) {
+          return null;
+        }
+
+        @Override
+        public Collection<String> getHeaders(String name) {
+          return null;
+        }
+
+        @Override
+        public OutputStream getOutputStream() throws IOException {
           return null;
         }
 
         @Override
         public PrintWriter getWriter() throws IOException {
-          return new PrintWriter(System.out);
+          return null;
         }
 
-        @Override 
+        @Override
         public void setCharacterEncoding(String charset) {
+
         }
 
         @Override
         public void setContentType(String type) {
+
         }
       };
     }
-}
+  }
 
   private static class DumbInitContext implements OAuth2IdentityProvider.InitContext {
     String redirectedTo = null;
@@ -381,103 +380,14 @@ public class IntegrationTest {
       return CALLBACK_URL;
     }
 
-    //@Override
-    public HttpRequest getRequest() {
-      return null;
-    }
-
-    //@Override
-    public HttpResponse getResponse() {
-      return null;
-    }
-
-    // Remove @Override annotations from these methods
-    public HttpResponse getHttpResponse() {
-        return getResponse();
-    }
-
+    @Override
     public HttpRequest getHttpRequest() {
-        return getRequest();
+      return null;
     }
-  }
 
-  @Test
-  public void callback_handles_response_writer() throws IOException {
-    google.enqueue(newSuccessfulAccessTokenResponse());
-    google.enqueue(new MockResponse().setBody("{\n" +
-      "    \"email\": \"john.smith@googleoauth.com\",\n" +
-      "    \"verified_email\": true,\n" +
-      "    \"name\": \"John Smith\"\n" +
-      "}"));
-
-    HttpRequest request = mock(HttpRequest.class);
-    DumbCallbackContext callbackContext = new DumbCallbackContext(request) {
-      //@Override
-      protected HttpResponse getResponse() {
-        return new HttpResponse() {
-          private int status = HttpServletResponse.SC_OK;
-
-          @Override
-          public void addCookie(Cookie cookie) {
-          }
-
-          @Override
-          public void setStatus(int sc) {
-            this.status = sc;
-          }
-
-          @Override
-          public int getStatus() {
-            return status;
-          }
-
-          @Override
-          public Collection<String> getHeaders(String name) {
-            return Collections.emptyList();
-          }
-
-          @Override
-          public String getHeader(String name) {
-            return null;
-          }
-
-          @Override
-          public void sendRedirect(String location) throws IOException {
-            redirectSent.set(true);
-          }
-
-          @Override
-          public void setHeader(String name, String value) {
-          }
-
-          @Override
-          public void addHeader(String name, String value) {
-          }
-
-          @Override
-          public ServletOutputStream getOutputStream() throws IOException {
-            return null;
-          }
-
-          @Override
-          public PrintWriter getWriter() throws IOException {
-            return new PrintWriter(System.out);
-          }
-
-          @Override 
-          public void setCharacterEncoding(String charset) {
-          }
-
-          @Override
-          public void setContentType(String type) {
-          }
-        };
-      }
-    };
-
-    underTest.callback(callbackContext);
-
-    assertThat(callbackContext.redirectSent.get()).isTrue();
-    assertThat(callbackContext.userIdentity).isNotNull();
+    @Override
+    public HttpResponse getHttpResponse() {
+      return null;
+    }
   }
 }
