@@ -42,18 +42,25 @@ package org.sonarqube.auth.googleoauth;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
+
+import java.util.Map;
+
 import org.sonar.api.config.PropertyDefinitions;
 import org.sonar.api.config.Settings;
+import org.sonar.api.config.internal.MapSettings;
 import org.sonar.api.server.authentication.UserIdentity;
+import static org.sonarqube.auth.googleoauth.GoogleSettings.LOGIN_STRATEGY_DEFAULT_VALUE;
+import static org.sonarqube.auth.googleoauth.GoogleSettings.LOGIN_STRATEGY_PROVIDER_LOGIN;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import org.sonar.api.utils.System2;
 
 public class UserIdentityFactoryTest {
 
   @Rule
   public ExpectedException expectedException = ExpectedException.none();
 
-  Settings settings = new Settings(new PropertyDefinitions(GoogleSettings.definitions()));
+  MapSettings settings = new MapSettings(new PropertyDefinitions(System2.INSTANCE, GoogleSettings.definitions()));
   UserIdentityFactory underTest = new UserIdentityFactory(new GoogleSettings(settings));
 
   /**
@@ -72,8 +79,9 @@ public class UserIdentityFactoryTest {
             "    \"locale\": \"en-US\"\n" +
             "}");
     settings.setProperty(GoogleSettings.LOGIN_STRATEGY, GoogleSettings.LOGIN_STRATEGY_PROVIDER_LOGIN);
+    settings.setProperty("sonar.auth.googleoauth.loginStrategy", LOGIN_STRATEGY_PROVIDER_LOGIN);
     UserIdentity identity = underTest.create(gson);
-    assertThat(identity.getLogin()).isEqualTo("john.smith@googleoauth.com");
+    assertThat(identity.getProviderLogin()).isEqualTo("john.smith@googleoauth.com");
     assertThat(identity.getName()).isEqualTo("John Smith");
     assertThat(identity.getEmail()).isEqualTo("john.smith@googleoauth.com");
   }
@@ -93,7 +101,7 @@ public class UserIdentityFactoryTest {
     settings.setProperty(GoogleSettings.LOGIN_STRATEGY, GoogleSettings.LOGIN_STRATEGY_UNIQUE);
 
     UserIdentity identity = underTest.create(gson);
-    assertThat(identity.getLogin()).isEqualTo("john.smith@googleoauth.com");
+    assertThat(identity.getProviderLogin()).isEqualTo("john.smith@googleoauth.com");
     assertThat(identity.getName()).isEqualTo("John Smith");
     assertThat(identity.getEmail()).isEqualTo("john.smith@googleoauth.com");
   }

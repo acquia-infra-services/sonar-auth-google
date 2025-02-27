@@ -57,7 +57,7 @@ public class GoogleIdentityProviderTest {
   @Rule
   public ExpectedException thrown = ExpectedException.none();
 
-  Settings settings = new Settings(new PropertyDefinitions(GoogleSettings.definitions()));
+  Settings settings = mock(Settings.class);
   GoogleSettings googleSettings = new GoogleSettings(settings);
   UserIdentityFactory userIdentityFactory = mock(UserIdentityFactory.class);
   GoogleScribeApi scribeApi = new GoogleScribeApi(googleSettings);
@@ -95,13 +95,13 @@ public class GoogleIdentityProviderTest {
 
   private void setSettings(boolean enabled) {
     if (enabled) {
-      settings.setProperty("sonar.auth.googleoauth.clientId.secured", "id");
-      settings.setProperty("sonar.auth.googleoauth.clientSecret.secured", "secret");
-      settings.setProperty("sonar.auth.googleoauth.loginStrategy", LOGIN_STRATEGY_DEFAULT_VALUE);
-      settings.setProperty("sonar.auth.googleoauth.enabled", true);
-    } else {
-      settings.setProperty("sonar.auth.googleoauth.enabled", false);
-    }
+      when(settings.getString("sonar.auth.googleoauth.clientId.secured")).thenReturn("id");
+      when(settings.getString("sonar.auth.googleoauth.clientSecret.secured")).thenReturn("secret");
+      when(settings.getString("sonar.auth.googleoauth.loginStrategy")).thenReturn(LOGIN_STRATEGY_DEFAULT_VALUE);
+      when(settings.getBoolean("sonar.auth.googleoauth.enabled")).thenReturn(true);
+  } else {
+      when(settings.getBoolean("sonar.auth.googleoauth.enabled")).thenReturn(false);
+  }
   }
 
 }

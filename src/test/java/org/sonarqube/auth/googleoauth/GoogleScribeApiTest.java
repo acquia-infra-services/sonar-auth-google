@@ -42,15 +42,27 @@ package org.sonarqube.auth.googleoauth;
 import com.github.scribejava.core.extractors.JsonTokenExtractor;
 import com.github.scribejava.core.model.OAuthConfig;
 import com.github.scribejava.core.model.Verb;
+
+import org.junit.Before;
 import org.junit.Test;
 import org.sonar.api.config.Settings;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
 
 public class GoogleScribeApiTest {
 
-  GoogleScribeApi underTest = new GoogleScribeApi(new GoogleSettings(new Settings()));
+  private Settings settings;
+  private GoogleSettings googleSettings;
+  private GoogleScribeApi underTest;
 
+  @Before
+  public void setUp() {
+    settings = mock(Settings.class);
+    googleSettings = new GoogleSettings(settings);
+    underTest = new GoogleScribeApi(googleSettings);
+  }
+  
   @Test
   public void getAccessTokenEndpoint() {
     assertThat(underTest.getAccessTokenEndpoint()).isEqualTo("https://www.googleapis.com/oauth2/v3/token");

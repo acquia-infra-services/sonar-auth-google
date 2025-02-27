@@ -40,16 +40,21 @@ package org.sonarqube.auth.googleoauth;
  */
 
 import org.junit.Test;
+
+import java.util.Map;
+
 import org.sonar.api.config.PropertyDefinitions;
 import org.sonar.api.config.Settings;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import org.sonar.api.config.internal.MapSettings;
+import org.sonar.api.utils.System2;
 import static org.sonarqube.auth.googleoauth.GoogleSettings.LOGIN_STRATEGY_DEFAULT_VALUE;
 import static org.sonarqube.auth.googleoauth.GoogleSettings.LOGIN_STRATEGY_PROVIDER_LOGIN;
 
 public class GoogleSettingsTest {
 
-  Settings settings = new Settings(new PropertyDefinitions(GoogleSettings.definitions()));
+  MapSettings settings = new MapSettings(new PropertyDefinitions(System2.INSTANCE, GoogleSettings.definitions()));
 
   GoogleSettings underTest = new GoogleSettings(settings);
 

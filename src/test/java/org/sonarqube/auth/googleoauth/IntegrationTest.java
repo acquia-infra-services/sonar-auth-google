@@ -42,20 +42,24 @@ package org.sonarqube.auth.googleoauth;
 import com.squareup.okhttp.mockwebserver.MockResponse;
 import com.squareup.okhttp.mockwebserver.MockWebServer;
 import com.squareup.okhttp.mockwebserver.RecordedRequest;
+
+
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
 import org.sonar.api.config.PropertyDefinitions;
 import org.sonar.api.config.Settings;
+import org.sonar.api.config.internal.MapSettings;
 import org.sonar.api.server.authentication.OAuth2IdentityProvider;
 import org.sonar.api.server.authentication.UserIdentity;
+import org.sonar.api.server.http.HttpRequest;
+import org.sonar.api.server.http.HttpResponse;
+import org.sonar.api.server.http.Cookie;
+import org.sonar.api.utils.System2;
 
-import javax.servlet.ServletOutputStream;
-import javax.servlet.http.Cookie;
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.io.PrintWriter;
 import java.util.Collection;
 import java.util.Locale;
@@ -65,6 +69,8 @@ import static java.lang.String.format;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+import org.sonar.api.config.internal.MapSettings;
+import org.sonar.api.utils.System2;
 
 public class IntegrationTest {
 
@@ -77,7 +83,7 @@ public class IntegrationTest {
   public ExpectedException expectedException = ExpectedException.none();
 
   // load settings with default values
-  Settings settings = new Settings(new PropertyDefinitions(GoogleSettings.definitions()));
+  MapSettings settings = new MapSettings(new PropertyDefinitions(System2.INSTANCE, GoogleSettings.definitions()));
   GoogleSettings googleSettings = new GoogleSettings(settings);
   UserIdentityFactory userIdentityFactory = new UserIdentityFactory(googleSettings);
   GoogleScribeApi scribeApi = new GoogleScribeApi(googleSettings);
@@ -129,12 +135,12 @@ public class IntegrationTest {
             "    \"locale\": \"en-US\"\n" +
             "}"));
 
-    HttpServletRequest request = newRequest("the-verifier-code");
+    HttpRequest request = newRequest("the-verifier-code");
     DumbCallbackContext callbackContext = new DumbCallbackContext(request);
     underTest.callback(callbackContext);
 
     assertThat(callbackContext.csrfStateVerified.get()).isFalse();
-    assertThat(callbackContext.userIdentity.getLogin()).isEqualTo("john.smith@googleoauth.com");
+    assertThat(callbackContext.userIdentity.getProviderLogin()).isEqualTo("john.smith@googleoauth.com");
     assertThat(callbackContext.userIdentity.getName()).isEqualTo("John Smith");
     assertThat(callbackContext.userIdentity.getEmail()).isEqualTo("john.smith@googleoauth.com");
     assertThat(callbackContext.redirectSent.get()).isTrue();
@@ -190,7 +196,7 @@ public class IntegrationTest {
             "    \"locale\": \"en-US\"\n" +
             "}"));
 
-    HttpServletRequest request = newRequest("the-verifier-code");
+    HttpRequest request = newRequest("the-verifier-code");
     DumbCallbackContext callbackContext = new DumbCallbackContext(request);
     underTest.callback(callbackContext);
 
@@ -205,26 +211,63 @@ public class IntegrationTest {
     return new MockResponse().setBody("{\"access_token\":\"e72e16c7e42f292c6912e7710c838347ae178b4a\",\"scope\":\"user\"}");
   }
 
-  private static HttpServletRequest newRequest(String verifierCode) {
-    HttpServletRequest request = mock(HttpServletRequest.class);
+  private static HttpRequest newRequest(String verifierCode) {
+    HttpRequest request = mock(HttpRequest.class);
     when(request.getParameter("code")).thenReturn(verifierCode);
     return request;
   }
 
+  @Test
+  public void verify_csrf_state() throws IOException {
+    google.enqueue(newSuccessfulAccessTokenResponse());
+    google.enqueue(new MockResponse().setBody("{\n" +
+        "    \"email\": \"john.smith@googleoauth.com\",\n" +
+        "    \"verified_email\": true,\n" +
+        "    \"name\": \"John Smith\"\n" +
+        "}"));
+
+    HttpRequest request = mock(HttpRequest.class);
+    when(request.getParameter("state")).thenReturn("expected-state");
+    DumbCallbackContext callbackContext = new DumbCallbackContext(request);
+
+    // This should not throw exception
+    callbackContext.verifyCsrfState("expected-state");
+    assertThat(callbackContext.csrfStateVerified.get()).isTrue();
+
+    // Should throw exception for invalid state
+    when(request.getParameter("state")).thenReturn("unexpected-state");
+    expectedException.expect(IllegalStateException.class);
+    expectedException.expectMessage("CSRF state does not match");
+    callbackContext.verifyCsrfState("expected-state");
+  }
+
   private static class DumbCallbackContext implements OAuth2IdentityProvider.CallbackContext {
-    final HttpServletRequest request;
+    final HttpRequest request;
     final AtomicBoolean csrfStateVerified = new AtomicBoolean(false);
     final AtomicBoolean redirectSent = new AtomicBoolean(false);
     final AtomicBoolean redirectedToRequestedPage = new AtomicBoolean(false);
     UserIdentity userIdentity = null;
 
-    public DumbCallbackContext(HttpServletRequest request) {
+    public DumbCallbackContext(HttpRequest request) {
       this.request = request;
     }
 
     @Override
     public void verifyCsrfState() {
-      this.csrfStateVerified.set(true);
+      String state = getHttpRequest().getParameter("state");
+      if (state == null || !state.equals("expected-state")) {
+          throw new IllegalStateException("CSRF state does not match");
+      }
+      csrfStateVerified.set(true);
+    }
+
+    @Override
+    public void verifyCsrfState(String expectedState) {
+      String state = getHttpRequest().getParameter("state");
+      if (state == null || !state.equals("expected-state")) {
+          throw new IllegalStateException("CSRF state does not match");
+      }
+      csrfStateVerified.set(true);
     }
 
     @Override
@@ -243,66 +286,21 @@ public class IntegrationTest {
     }
 
     @Override
-    public HttpServletRequest getRequest() {
+    public HttpRequest getHttpRequest() {
       return request;
     }
 
     @Override
-    public HttpServletResponse getResponse() {
-      return new HttpServletResponse() {
+    public HttpResponse getHttpResponse() {
+      return new HttpResponse() {
         @Override
         public void addCookie(Cookie cookie) {
 
         }
 
         @Override
-        public boolean containsHeader(String name) {
-          return false;
-        }
-
-        @Override
-        public String encodeURL(String url) {
-          return null;
-        }
-
-        @Override
-        public String encodeRedirectURL(String url) {
-          return null;
-        }
-
-        @Override
-        public String encodeUrl(String url) {
-          return null;
-        }
-
-        @Override
-        public String encodeRedirectUrl(String url) {
-          return null;
-        }
-
-        @Override
-        public void sendError(int sc, String msg) throws IOException {
-
-        }
-
-        @Override
-        public void sendError(int sc) throws IOException {
-
-        }
-
-        @Override
         public void sendRedirect(String location) throws IOException {
           redirectSent.set(true);
-        }
-
-        @Override
-        public void setDateHeader(String name, long date) {
-
-        }
-
-        @Override
-        public void addDateHeader(String name, long date) {
-
         }
 
         @Override
@@ -315,23 +313,9 @@ public class IntegrationTest {
 
         }
 
-        @Override
-        public void setIntHeader(String name, int value) {
-
-        }
-
-        @Override
-        public void addIntHeader(String name, int value) {
-
-        }
 
         @Override
         public void setStatus(int sc) {
-
-        }
-
-        @Override
-        public void setStatus(int sc, String sm) {
 
         }
 
@@ -351,22 +335,7 @@ public class IntegrationTest {
         }
 
         @Override
-        public Collection<String> getHeaderNames() {
-          return null;
-        }
-
-        @Override
-        public String getCharacterEncoding() {
-          return null;
-        }
-
-        @Override
-        public String getContentType() {
-          return null;
-        }
-
-        @Override
-        public ServletOutputStream getOutputStream() throws IOException {
+        public OutputStream getOutputStream() throws IOException {
           return null;
         }
 
@@ -381,53 +350,8 @@ public class IntegrationTest {
         }
 
         @Override
-        public void setContentLength(int len) {
-
-        }
-
-        @Override
         public void setContentType(String type) {
 
-        }
-
-        @Override
-        public void setBufferSize(int size) {
-
-        }
-
-        @Override
-        public int getBufferSize() {
-          return 0;
-        }
-
-        @Override
-        public void flushBuffer() throws IOException {
-
-        }
-
-        @Override
-        public void resetBuffer() {
-
-        }
-
-        @Override
-        public boolean isCommitted() {
-          return false;
-        }
-
-        @Override
-        public void reset() {
-
-        }
-
-        @Override
-        public void setLocale(Locale loc) {
-
-        }
-
-        @Override
-        public Locale getLocale() {
-          return null;
         }
       };
     }
@@ -457,12 +381,12 @@ public class IntegrationTest {
     }
 
     @Override
-    public HttpServletRequest getRequest() {
+    public HttpRequest getHttpRequest() {
       return null;
     }
 
     @Override
-    public HttpServletResponse getResponse() {
+    public HttpResponse getHttpResponse() {
       return null;
     }
   }
