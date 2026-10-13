@@ -109,8 +109,12 @@ public class GoogleIdentityProvider implements OAuth2IdentityProvider {
 
   @Override
   public void init(InitContext context) {
+    // SonarQube rejects OAuth2 providers that do not use the CSRF state (SonarQube 2026.5+):
+    // generate it here (SonarQube stores it in a cookie) and send it to Google.
+    String state = context.generateCsrfState();
     OAuthService scribe = newScribeBuilder(context)
       .scope(REQUIRED_SCOPE)
+      .state(state)
       .build();
     String url = scribe.getAuthorizationUrl(EMPTY_TOKEN);
     context.redirectTo(url);
@@ -118,6 +122,8 @@ public class GoogleIdentityProvider implements OAuth2IdentityProvider {
 
   @Override
   public void callback(CallbackContext context) {
+    // Must run before authenticate(): validates the "state" returned by Google against the cookie.
+    context.verifyCsrfState();
     HttpRequest request = context.getHttpRequest();
     OAuthService scribe = newScribeBuilder(context).build();
     String oAuthVerifier = request.getParameter("code");

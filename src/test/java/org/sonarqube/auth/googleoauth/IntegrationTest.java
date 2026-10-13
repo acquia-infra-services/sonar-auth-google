@@ -109,7 +109,8 @@ public class IntegrationTest {
     underTest.init(context);
     assertThat(context.redirectedTo)
       .startsWith(google.url("o/oauth2/auth").toString())
-      .contains("scope=" + "openid%20email");
+      .contains("scope=" + "openid%20email")
+      .contains("state=the-csrf-state");
   }
 
   /**
@@ -139,7 +140,7 @@ public class IntegrationTest {
     DumbCallbackContext callbackContext = new DumbCallbackContext(request);
     underTest.callback(callbackContext);
 
-    assertThat(callbackContext.csrfStateVerified.get()).isFalse();
+    assertThat(callbackContext.csrfStateVerified.get()).isTrue();
     assertThat(callbackContext.userIdentity.getProviderLogin()).isEqualTo("john.smith@googleoauth.com");
     assertThat(callbackContext.userIdentity.getName()).isEqualTo("John Smith");
     assertThat(callbackContext.userIdentity.getEmail()).isEqualTo("john.smith@googleoauth.com");
@@ -200,7 +201,7 @@ public class IntegrationTest {
     DumbCallbackContext callbackContext = new DumbCallbackContext(request);
     underTest.callback(callbackContext);
 
-    assertThat(callbackContext.csrfStateVerified.get()).isFalse();
+    assertThat(callbackContext.csrfStateVerified.get()).isTrue();
     assertThat(callbackContext.userIdentity).isNull();
   }
 
@@ -214,7 +215,25 @@ public class IntegrationTest {
   private static HttpRequest newRequest(String verifierCode) {
     HttpRequest request = mock(HttpRequest.class);
     when(request.getParameter("code")).thenReturn(verifierCode);
+    when(request.getParameter("state")).thenReturn("expected-state");
     return request;
+  }
+
+  @Test
+  public void callback_rejects_invalid_csrf_state() throws IOException {
+    HttpRequest request = newRequest("the-verifier-code");
+    when(request.getParameter("state")).thenReturn("forged-state");
+    DumbCallbackContext callbackContext = new DumbCallbackContext(request);
+
+    try {
+      underTest.callback(callbackContext);
+      org.junit.Assert.fail("callback must fail when the CSRF state does not match");
+    } catch (IllegalStateException e) {
+      assertThat(e).hasMessage("CSRF state does not match");
+    }
+
+    assertThat(callbackContext.userIdentity).isNull();
+    assertThat(google.getRequestCount()).isZero();
   }
 
   @Test
